@@ -2,6 +2,8 @@ package org.jruby.embed;
 
 import java.net.URL;
 
+import org.jruby.util.cli.Options;
+
 /**
  * the IsolatedScriptingContainer detects the whether it is used with
  * a Thread.currentThread.contextClassLoader (J2EE) or with the classloader
@@ -40,7 +42,6 @@ public class IsolatedScriptingContainer extends ScriptingContainer {
 
     private static final String JRUBYDIR = "/.jrubydir";
     private static final String JRUBY_HOME = "/META-INF/jruby.home";
-    private static final String JRUBY_HOME_DIR = JRUBY_HOME + JRUBYDIR;
     
     public IsolatedScriptingContainer()
     {
@@ -67,41 +68,25 @@ public class IsolatedScriptingContainer extends ScriptingContainer {
                                        LocalVariableBehavior behavior,
                                        boolean lazy )
     {
-        super( scope, behavior, lazy );
-        boolean isContextClassLoader = true;
-        URL home = Thread.currentThread().getContextClassLoader().getResource( JRUBY_HOME_DIR.substring( 1 ) );
-        if ( home == null ) {
-            isContextClassLoader = false;
-            home = this.getClass().getClassLoader().getResource( JRUBY_HOME_DIR );
-            if ( home == null ) {
-                throw new RuntimeException( "BUG can not find " + JRUBY_HOME_DIR );
-            }
-            setClassLoader( this.getClass().getClassLoader() );
-            setHomeDirectory( "uri:" + home.toString().replaceFirst( JRUBYDIR + "$", "" ) );
-        }
-        else {
-            setHomeDirectory( "uri:classloader:" + JRUBY_HOME );
-        }
+        super(scope, behavior, lazy);
 
-        // clean up LOAD_PATH
-        runScriptlet( "$LOAD_PATH.delete_if{|p| p =~ /jar$/ };"
-                      // TODO NormalizedFile does too much - should leave uri: files as they are
-                      + "$LOAD_PATH.each{|p| p.sub!( /:\\/([^\\/])/,'://\\1' )}" );
+        // get the right classloader
+        ClassLoader cl = this.getClass().getClassLoader();
+        if (cl == null) cl = Thread.currentThread().getContextClassLoader();
+        setClassLoader( cl );
+
+        // set the right jruby home
+        setHomeDirectory( "uri:classloader:" + JRUBY_HOME );
         
-        if ( isContextClassLoader ) {
-            runScriptlet( "Gem::Specification.reset;"
-                        + "Gem::Specification.add_dir 'uri:classloader:" + JRUBY_HOME + "/lib/ruby/gems/shared';"
-                        + "Gem::Specification.add_dir 'uri:classloader:/';"
-                        + "$LOAD_PATH << 'uri:classloader:/'; $LOAD_PATH.inspect" );
-        }
-        else {
-            runScriptlet( "Gem::Specification.reset;"
-                        + "Gem::Specification.add_dir '" + getHomeDirectory() + "/lib/ruby/gems/shared'" );
-            addLoadPath( getClassLoader(), JRUBY_HOME_DIR );
-            addGemPath( getClassLoader(), JRUBY_HOME_DIR );
-        }
+        // clean up LOAD_PATH
+        runScriptlet( "$LOAD_PATH.delete_if{|p| p =~ /jar$/ }" );
+
+        // setup the isolated GEM_PATH, i.e. without $HOME/.gem/**
+        runScriptlet("Gem::Specification.reset;"
+                + "Gem::Specification.add_dir 'uri:classloader:" + JRUBY_HOME + "/lib/ruby/gems/shared';"
+                + "Gem::Specification.add_dir 'uri:classloader:';");
     }
-    
+
     public void addLoadPath( ClassLoader cl ) {
         addLoadPath( cl, JRUBYDIR );
     }
