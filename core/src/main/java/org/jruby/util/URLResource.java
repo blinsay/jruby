@@ -190,7 +190,10 @@ public class URLResource implements FileResource {
         try
         {
             // TODO NormalizedFile does too much - should leave uri: files as they are
+            // and make file:/a protocol to be file:///a
+            pathname = pathname.replaceFirst( "file:/([^/])", "file:///$1" );
             pathname = pathname.replaceFirst( ":/([^/])", "://$1" );
+            
             url = new URL(pathname);
             // we do not want to deal with those url here like this though they are valid url/uri
             if (url.getProtocol().startsWith("http")){
@@ -199,6 +202,7 @@ public class URLResource implements FileResource {
         }
         catch (MalformedURLException e)
         {
+            e.printStackTrace();
             // file does not exists
             return new URLResource(URI + pathname, (URL)null, null);
         }
