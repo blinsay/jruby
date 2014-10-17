@@ -53,6 +53,7 @@ public class IOInputStream extends InputStream {
     private final IRubyObject numOne;
     private static final CallSite readAdapter = MethodIndex.getFunctionalCallSite("read");
     private static final CallSite closeAdapter = MethodIndex.getFunctionalCallSite("close");
+    private boolean closed = false;
 
     /**
      * Creates a new InputStream with the object provided.
@@ -71,11 +72,16 @@ public class IOInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
+        if (closed) {
+            return;
+        }
+
         if (in != null) {
             in.close();
         } else if (io.respondsTo("close")) {
             closeAdapter.call(io.getRuntime().getCurrentContext(), io, io);
         }
+        closed = true;
     }
 
     // Note: this method produces meaningful results
